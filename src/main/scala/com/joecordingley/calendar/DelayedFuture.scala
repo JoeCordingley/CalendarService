@@ -22,7 +22,6 @@ object DelayedFuture {
       override def run(): Unit = promise.success(())
     }
     timer.schedule(timerTask,date)
-    println("JOE")
     promise.future
   }
   def apply(duration: FiniteDuration):Future[Unit] = {
