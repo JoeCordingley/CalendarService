@@ -31,6 +31,7 @@ object FutureExperiment extends App{
       f.flatMap(_=>taskFutures(fs))
     }
   }
+  
   val now = Instant.now()
 
   val times = (1 to 1000000)
