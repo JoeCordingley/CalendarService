@@ -1,40 +1,113 @@
 package com.joecordingley.calendar
 
+import java.time.Instant
 
-import java.util.{Timer, TimerTask}
-import java.util.Date
-import java.time._
-import java.util.concurrent.ScheduledFuture
+import akka.actor.{Actor, ActorRef, FSM}
+import Scheduler._
 
-import com.joecordingley.calendar.Scheduler.Task
+import scala.concurrent.ExecutionContext
+import scala.util.{Failure,Success}
 
-import scala.concurrent.Await
-import scala.concurrent.{ExecutionContext, Future}
 /**
-  * Created by joe on 13/08/17.
+  * Created by joe on 12/09/17.
   */
-object Scheduler {
-  type Task = () => Unit
+class Scheduler(implicit val executionContext: ExecutionContext) extends Actor{
 
-  def addSchedule(s:Stream[ScheduledTask])(implicit ec: ExecutionContext):Unit = {
-    val f1s = s.map(task => DelayedFuture(task.instant) map (_ => task.task()))
-    StreamUtil.sequence2(f1s)
-    ()
+  var state:State = Idle
+
+  implicit val instantOrdering: Ordering[Instant] = Ordering.by(_.toEpochMilli)
+
+  implicit val whenToSendWhoWhatOrdering: Ordering[WhenToSendWhoWhat] = Ordering.by(_.instant)
+  import Ordered.orderingToOrdered
+
+
+  override def receive: Receive = {
+    case m:SchedulerMessage=> (m,state) match {
+      case (WhoToSendWhat(receiver, message), ScheduleState(_,_, schedule)) => {
+        receiver ! message
+        state = initialize(schedule)
+      }
+      case (WhoToSendWhat(_,_),Idle) => println("oh noes") //TODO
+      case (AddSchedule(newSchedule), scheduleState: ScheduleState) => state = merge(newSchedule, scheduleState)
+      case (AddSchedule(schedule), Idle) => state = initialize(schedule)
+      case (RemoveSchedules(_),Idle) => ()
+      case (RemoveSchedules(predicate),scheduleState:ScheduleState) => state = remove(predicate,scheduleState)
+    }
   }
 
-//  def delayedTask(instant: Instant)(task: Task):Future[Task] = DelayedFuture(instant).map(_ => task)
-//  def StreamFutures(s:Stream[ScheduledTask]):Stream[Future[Task]] = {
-//    def go(previousFuture:Future[Task],s:Stream[ScheduledTask]):Stream[Future[Task]] = s match {
-//      case Stream.Empty => Stream.empty
-//      case schedule #:: schedules => {
-//        val nextFuture = for {
-//          tlast <- previousFuture
-//          tnext <- delayedTask()
-//
-//        }
-//      }
-//    }
-//  }
+  def remove(predicate:Predicate, scheduleState: ScheduleState):State = {
+    val currentMessage = scheduleState.currentlyWaitingFor.whoToSendWhat.message
+
+    val newSchedule = scheduleState.restOfTheSchedule.filterNot{
+      case WhenToSendWhoWhat(_,WhoToSendWhat(_,message)) => predicate(message)
+    }
+
+    if (predicate(currentMessage))
+      cancelAndSchedule(scheduleState.delayedCancellable,newSchedule)
+    else
+      scheduleState.copy(restOfTheSchedule = newSchedule)
+
+  }
+
+
+  def initialize(schedule: Schedule):State = schedule match {
+    case Stream.Empty => Idle
+    case x#:: xs => ScheduleState(
+      delayedCancellable = scheduleOne(x),
+      currentlyWaitingFor = x,
+      restOfTheSchedule = xs
+    )
+
+  }
+
+  def merge(newSchedule:Schedule, scheduleState:ScheduleState):State = {
+    val currentCancellable = scheduleState.delayedCancellable
+    val currentlyWaitingFor = scheduleState.currentlyWaitingFor
+
+    newSchedule match {
+      case w#::_ if w >= currentlyWaitingFor =>
+        ScheduleState(
+          delayedCancellable = currentCancellable,
+          currentlyWaitingFor = currentlyWaitingFor,
+          restOfTheSchedule = StreamUtil.merge(scheduleState.restOfTheSchedule,newSchedule)
+        )
+      case w#::_ if w < currentlyWaitingFor =>
+        val mergedSchedule = StreamUtil.merge(newSchedule,scheduleState.wholeSchedule)
+        cancelAndSchedule(currentCancellable,mergedSchedule)
+      case Stream.Empty => scheduleState
+    }
+  }
+
+  def cancelAndSchedule(cancellable: DelayedCancellable[WhoToSendWhat],schedule:Schedule):State = {
+    cancellable.cancel getOrElse println("argh") //TODO
+
+    initialize(schedule)
+  }
+
+  def scheduleOne(w: WhenToSendWhoWhat):DelayedCancellable[WhoToSendWhat] ={
+    val cancellable = DelayedCancellable(w.instant,w.whoToSendWhat)
+    cancellable.future.foreach{case whoToSendWhat => self ! whoToSendWhat}
+    cancellable
+  }
 
 }
-case class ScheduledTask(instant: Instant, task:Task)
+object Scheduler {
+  sealed trait State
+  case object Idle extends State
+  case class ScheduleState(delayedCancellable: DelayedCancellable[WhoToSendWhat],
+                           currentlyWaitingFor: WhenToSendWhoWhat,
+                           restOfTheSchedule: Schedule) extends State {
+    val wholeSchedule: Stream[WhenToSendWhoWhat] = currentlyWaitingFor #:: restOfTheSchedule
+  }
+  type Schedule = Stream[WhenToSendWhoWhat]
+  case class WhenToSendWhoWhat(instant: Instant,whoToSendWhat: WhoToSendWhat)
+  sealed trait SchedulerMessage
+  case class WhoToSendWhat(receiver: ActorRef, message: Message) extends SchedulerMessage
+  case class AddSchedule(schedule: Schedule) extends SchedulerMessage
+  type Predicate = Message => Boolean
+  case class RemoveSchedules(predicate:Predicate) extends SchedulerMessage
+  trait Message
+
+
+}
+
