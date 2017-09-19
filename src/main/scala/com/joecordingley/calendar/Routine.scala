@@ -20,10 +20,10 @@ object Routine {
   def lastWorkingDayOfTheMonth(month:Month)(year:Int): LocalDate = bringForwardIfNotWorkingDay(lastDayOfTheMonth(month)(year))
   val isLastWorkingDayOfTheMonth: DayPredicate = dayOfMonthToPredicate(lastWorkingDayOfTheMonth)
   val lastWorkingDayOfEveryMonth: DaysFrom = allDays(_).filter(isLastWorkingDayOfTheMonth)
-  def every(dayPredicate: DayPredicate,nonWorkingDayStrategy: NonWorkingDayStrategy=Keep):DaysFrom = {
+  def every(dayPredicate: DayPredicate,nonWorkingDayStrategy: NonWorkingDayStrategy=KeepUnchanged):DaysFrom = {
     val x: DaysFrom = allDays(_) filter dayPredicate
     nonWorkingDayStrategy match {
-      case Keep => x
+      case KeepUnchanged => x
       case Remove => x(_) filter workingDay
       case BringForward => x(_) map bringForwardIfNotWorkingDay
       case MoveLater => x(_) map moveLaterIfNotWorkingDay
@@ -36,4 +36,4 @@ sealed trait NonWorkingDayStrategy
 case object BringForward extends NonWorkingDayStrategy
 case object MoveLater extends NonWorkingDayStrategy
 case object Remove extends NonWorkingDayStrategy
-case object Keep extends NonWorkingDayStrategy
+case object KeepUnchanged extends NonWorkingDayStrategy
