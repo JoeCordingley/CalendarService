@@ -4,6 +4,7 @@ import java.time.Instant
 
 import akka.actor.{Actor, ActorRef}
 import Scheduler._
+import com.joecordingley.calendar.Multiplexer.MultiplexerMessage
 
 import scala.concurrent.ExecutionContext
 
@@ -71,7 +72,7 @@ object Scheduler {
   case class TimeAndMessage(instant: Instant, message: Payload)
   sealed trait SchedulerMessage
   case class UpdateSchedule(schedule: TimeAndMessageStream) extends SchedulerMessage
-  trait Payload extends SchedulerMessage
+  trait Payload extends SchedulerMessage with MultiplexerMessage
   case class ScheduleState(delayedCancellable: DelayedCancellable[Payload],
                            currentlyWaitingFor: TimeAndMessage,
                            restOfTheSchedule: TimeAndMessageStream

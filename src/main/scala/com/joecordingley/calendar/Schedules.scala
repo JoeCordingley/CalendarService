@@ -14,10 +14,12 @@ import Routine._
 object Schedules {
 
   val example1 = {
+    val scheduleKey = "Schedule1"
     val startDate = LocalDate.of(2017,JANUARY,1)
     val timeZone = TimeZone.getDefault
     val sevenInTheEvening = LocalTime.of(19,0)
     val schedule = every(MONDAY,nonWorkingDayStrategy = MoveLater).from(startDate).at(sevenInTheEvening)
+    val message = "hello"
   }
 
 }
