@@ -31,7 +31,7 @@ class Scheduler(receiver: ActorRef)(implicit val executionContext: ExecutionCont
     }
   }
 
-  def initialize(schedule: Schedule):State = schedule match {
+  def initialize(schedule: TimeAndMessageStream):State = schedule match {
     case Stream.Empty => Idle
     case x#:: xs => ScheduleState(
       delayedCancellable = scheduleOne(x),
@@ -41,7 +41,7 @@ class Scheduler(receiver: ActorRef)(implicit val executionContext: ExecutionCont
 
   }
 
-  def reinitialize(newSchedule:Schedule, scheduleState:ScheduleState):State = {
+  def reinitialize(newSchedule:TimeAndMessageStream, scheduleState:ScheduleState):State = {
     val currentCancellable = scheduleState.delayedCancellable
     val currentlyWaitingFor = scheduleState.currentlyWaitingFor
 
@@ -52,7 +52,7 @@ class Scheduler(receiver: ActorRef)(implicit val executionContext: ExecutionCont
     }
   }
 
-  def cancelAndSchedule(cancellable: DelayedCancellable[Payload], schedule:Schedule):State = {
+  def cancelAndSchedule(cancellable: DelayedCancellable[Payload], schedule:TimeAndMessageStream):State = {
     cancellable.cancel getOrElse println("argh") //TODO
     initialize(schedule)
   }
@@ -67,14 +67,14 @@ class Scheduler(receiver: ActorRef)(implicit val executionContext: ExecutionCont
 object Scheduler {
   sealed trait State
   case object Idle extends State
-  type Schedule = Stream[TimeAndMessage]
+  type TimeAndMessageStream = Stream[TimeAndMessage]
   case class TimeAndMessage(instant: Instant, message: Payload)
   sealed trait SchedulerMessage
-  case class UpdateSchedule(schedule: Schedule) extends SchedulerMessage
+  case class UpdateSchedule(schedule: TimeAndMessageStream) extends SchedulerMessage
   trait Payload extends SchedulerMessage
   case class ScheduleState(delayedCancellable: DelayedCancellable[Payload],
                            currentlyWaitingFor: TimeAndMessage,
-                           restOfTheSchedule: Schedule
+                           restOfTheSchedule: TimeAndMessageStream
                           ) extends State {
     val wholeSchedule: Stream[TimeAndMessage] = currentlyWaitingFor #:: restOfTheSchedule
   }

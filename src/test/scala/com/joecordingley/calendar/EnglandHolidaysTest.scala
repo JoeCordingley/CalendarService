@@ -2,14 +2,14 @@ package com.joecordingley.calendar
 
 import java.time.LocalDate
 import java.time.Month._
-import com.joecordingley.calendar.Holidays._
+import com.joecordingley.calendar.EnglandHolidays._
 
 import org.scalatest.{FreeSpec, Matchers}
 
 /**
   * Created by joe on 12/08/17.
   */
-class HolidaysTest extends FreeSpec with Matchers {
+class EnglandHolidaysTest extends FreeSpec with Matchers {
 
   "new years day bank holiday" - {
     "2017" - {

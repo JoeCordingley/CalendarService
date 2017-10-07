@@ -1,32 +1,42 @@
 package com.joecordingley.calendar
 
 import com.joecordingley.calendar.DayUtil._
-import java.time._
 import com.joecordingley.calendar.Holidays._
+import java.time._
+
 
 /**
   * Created by joe on 12/08/17.
   */
 object Routine {
 
-  def nthOfMonth(day:Int)(month:Month)(year:Int):LocalDate = LocalDate.of(year,month,day)
-  def nthOfMonthBroughtForward(day:Int)(month:Month)(year:Int):LocalDate = bringForwardIfNotWorkingDay(nthOfMonth(day)(month)(year))
-  def nthOfMonthMovedLater(day:Int)(month: Month)(year:Int):LocalDate = moveLaterIfNotWorkingDay(nthOfMonth(day)(month)(year))
-  def nthOfEveryMonth(n:Int,nonWorkingDayStrategy: NonWorkingDayStrategy):DaysFrom =
-    every(dayOfMonthToPredicate(nthOfMonth(n)),nonWorkingDayStrategy)
-  def bringForwardIfNotWorkingDay(date:LocalDate):LocalDate = first(workingDay).onOrBefore(date)
-  def moveLaterIfNotWorkingDay(date:LocalDate):LocalDate = first(workingDay).onOrAfter(date)
-  val firstWorkingDayOfEveryMonth: DaysFrom = nthOfEveryMonth(1,MoveLater)
-  def lastWorkingDayOfTheMonth(month:Month)(year:Int): LocalDate = bringForwardIfNotWorkingDay(lastDayOfTheMonth(month)(year))
-  val isLastWorkingDayOfTheMonth: DayPredicate = dayOfMonthToPredicate(lastWorkingDayOfTheMonth)
-  val lastWorkingDayOfEveryMonth: DaysFrom = allDays(_).filter(isLastWorkingDayOfTheMonth)
-  def every(dayPredicate: DayPredicate,nonWorkingDayStrategy: NonWorkingDayStrategy=KeepUnchanged):DaysFrom = {
-    val x: DaysFrom = allDays(_) filter dayPredicate
+
+//  def nthOfMonth(day:Int)(month:Month)(year:Int):LocalDate = LocalDate.of(year,month,day)
+  def nthOfMonth(n:Int): DayOfMonth = month => year => LocalDate.of(year,month,n)
+//  def nthOfMonthBroughtForward(day:Int)(month:Month)(year:Int):HolidayReader[LocalDate] = bringForwardIfNotWorkingDay.map(_(nthOfMonth(day)(month)(year)))
+//  def nthOfMonthMovedLater(day:Int)(month: Month)(year:Int):HolidayReader[LocalDate] = moveLaterIfNotWorkingDay map (_(nthOfMonth(day)(month)(year)))
+  def nthOfEveryMonth(n:Int,nonWorkingDayStrategy: NonWorkingDayStrategy)(implicit holidayRepository: HolidayRepository):DaysFrom =
+    every(nthOfMonth(n),nonWorkingDayStrategy)
+  def bringForwardIfNotWorkingDay(day:LocalDate)(implicit holidayRepository: HolidayRepository):LocalDate =
+    first(holidayRepository.workingDay).onOrBefore(day)
+  def moveLaterIfNotWorkingDay(implicit holidayRepository: HolidayRepository):LocalDate=>LocalDate =
+    first(holidayRepository.workingDay).onOrAfter(_)
+  def firstWorkingDayOfEveryMonth(implicit holidayRepository:HolidayRepository): DaysFrom =
+    nthOfEveryMonth(1,MoveLater)
+  def lastWorkingDayOfTheMonth(implicit holidayRepository: HolidayRepository): DayOfMonth = month => year =>
+    bringForwardIfNotWorkingDay(lastDayOfTheMonth(month)(year))
+  def lastWorkingDayOfEveryMonth(implicit holidayRepository: HolidayRepository): DaysFrom =
+    allDays(_) filter lastWorkingDayOfTheMonth
+  def every(dayPredicate: DayPredicate)(implicit holidayRepository: HolidayRepository):DaysFrom =
+    allDays(_) filter dayPredicate
+  def every(dayPredicate: DayPredicate,nonWorkingDayStrategy: NonWorkingDayStrategy)
+           (implicit holidayRepository: HolidayRepository):DaysFrom = {
+    val unchanged = every(dayPredicate)
     nonWorkingDayStrategy match {
-      case KeepUnchanged => x
-      case Remove => x(_) filter workingDay
-      case BringForward => x(_) map bringForwardIfNotWorkingDay
-      case MoveLater => x(_) map moveLaterIfNotWorkingDay
+      case KeepUnchanged => unchanged
+      case MoveLater => unchanged(_) map moveLaterIfNotWorkingDay
+      case BringForward => unchanged(_) map bringForwardIfNotWorkingDay
+      case Remove => unchanged(_) filter holidayRepository.workingDay
     }
   }
 

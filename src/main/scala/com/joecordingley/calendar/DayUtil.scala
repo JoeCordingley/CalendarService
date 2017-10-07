@@ -2,6 +2,7 @@ package com.joecordingley.calendar
 
 import java.time._
 import java.time.DayOfWeek._
+import java.util.TimeZone
 
 /**
   * Created by joe on 10/08/17.
@@ -12,9 +13,15 @@ object DayUtil {
   type DayOfYear = Int => LocalDate
   type DayOfMonth = Month => Int => LocalDate
   type DaysFrom = LocalDate => Stream[LocalDate]
+  type DateTimeFrom = LocalDateTime => Stream[LocalDateTime]
   implicit class DaysFromMixins(daysFrom: DaysFrom) {
     def from(date:LocalDate): Stream[LocalDate] = daysFrom(date)
+    def at(time: LocalTime): DateTimeFrom = daysFrom(_).map(_.atTime(time))
   }
+  implicit class LocalDateMixins(s:Stream[LocalDate]) {
+    def at(time: LocalTime):Stream[LocalDateTime] = s.map(_.atTime(time))
+  }
+  implicit def dateTimeToInstant(dateTime:LocalDateTime)(implicit timeZone: TimeZone) = dateTime.atZone(timeZone.toZoneId).toInstant
 
   implicit def dayOfWeekToPredicate(d:DayOfWeek):DayPredicate = _.getDayOfWeek == d
   implicit def dayOfYearToPredicate(dayOfYear: DayOfYear):DayPredicate = day => dayOfYear(day.getYear) == day
@@ -45,6 +52,15 @@ object DayUtil {
       case (true,_) => iterate(f(date),count-1,f,dayPredicate)
       case (false,_) => iterate(f(date),count,f,dayPredicate)
     }
+  private def iterate2(date:LocalDate,count:Int,f:LocalDate => LocalDate,dayPredicate: DayPredicate) : LocalDate =
+    (1 to count).foldLeft(date){case (acc,_) => iter(acc,f,dayPredicate)}
+
+  private def compose[A](l:List[A=>A]):A=>A = l.foldLeft(identity[A])(_ compose _)
+  private def iter(date:LocalDate,f:LocalDate =>LocalDate,dayPredicate: DayPredicate):LocalDate =
+    if (dayPredicate(date))
+      date
+    else
+      iter(f(date),f,dayPredicate)
 
   case class Last(dayPredicate: DayPredicate) {
     def in(month:Month)(year:Int):LocalDate = iterate(lastDayOfTheMonth(month)(year),1,previousDay,dayPredicate)

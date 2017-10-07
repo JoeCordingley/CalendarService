@@ -6,8 +6,9 @@ import java.time.Month._
 
 import de.jollyday.util.CalendarUtil
 import DayUtil._
+import cats.data.Reader
 
-object Holidays {
+object EnglandHolidays extends HolidayRepository{
 
 
   val newYearsDay: DayOfYear = first(day).in(JANUARY)
@@ -22,7 +23,7 @@ object Holidays {
   val christmasDayBankHoliday: DayOfYear = first(weekday).onOrAfter(christmasDay)
   val boxingDayBankHoliday: DayOfYear = first(weekday).onOrAfter(christmasDayBankHoliday)
 
-  val englandBankHolidays:List[DayOfYear] = List(
+  override def holidays:List[DayOfYear] = List(
     newYearsDayBankHoliday,
     goodFriday,
     easterMonday,
@@ -32,12 +33,27 @@ object Holidays {
     christmasDayBankHoliday,
     boxingDayBankHoliday
   )
-  val bankHolidayPredicates: List[DayPredicate] = englandBankHolidays map dayOfYearToPredicate
 
-  val bankHoliday: DayPredicate = date => bankHolidayPredicates.foldLeft(false)(_||_(date))
-
-  val workingDay: DayPredicate = date => weekday(date) && !bankHoliday(date)
-  val nonWorkingDay: DayPredicate = !workingDay(_)
-  val workingDaysFrom: DaysFrom = weekDays(_).filterNot(bankHoliday)
-
+}
+object Holidays {
+  type HolidayReader[A] = Reader[HolidayRepository,A]
+  def workingDayReader:HolidayReader[DayPredicate] = Reader(_.workingDay)
+/*  def bankHoliday: HolidayReader[DayPredicate] = for {
+    holidays <- getHolidays
+  } yield {date:LocalDate =>
+    (holidays map dayOfYearToPredicate).foldLeft(false)(_||_(date))
+  }
+  def getHolidays: HolidayReader[List[DayOfYear]]= Reader(_.holidays)
+  def workingDayR: HolidayReader[DayPredicate]= for {
+    bh <- bankHoliday
+  } yield { date:LocalDate =>
+    weekday(date) && !bh(date)
+  }
+  def nonWorkingDay: HolidayReader[DayPredicate] = workingDay.map(predicate => !predicate(_))*/
+}
+trait HolidayRepository {
+  def holidays:List[DayOfYear]
+  def bankHoliday: DayPredicate = date =>(holidays map dayOfYearToPredicate).foldLeft(false)(_||_(date))
+  def workingDay: DayPredicate = date => weekday(date) && !bankHoliday(date)
+  def nonWorkingDay:DayPredicate = !workingDay(_)
 }

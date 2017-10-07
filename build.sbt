@@ -10,6 +10,8 @@ libraryDependencies ++= Seq(
   "org.quartz-scheduler" % "quartz" % "2.1.3",
   "com.typesafe.akka" %% "akka-actor" % "2.5.4",
   "com.typesafe.akka" %% "akka-stream" % "2.5.4",
-  "com.typesafe.akka" %% "akka-testkit" % "2.5.4" % Test
+  "com.typesafe.akka" %% "akka-testkit" % "2.5.4" % Test,
+  "org.typelevel" %% "cats-core" % "1.0.0-MF",
+  "org.typelevel" %% "cats-free" % "1.0.0-MF"
 )
         
